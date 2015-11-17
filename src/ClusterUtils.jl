@@ -1,7 +1,15 @@
 
 module ClusterUtils
 
-#=
+export lookup, filterpaths, makefiltermaster, describepidsi, localpids
+export getrepresentation, display
+export sendto, sendtosimple, broadcast, broadcastfrom
+export MessageDict, distribute
+export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
+
+
+# FINDING DATA
+
 function lookup(modname::Module, srchterm::Regex)
     vars = names(modname, true)
     indx = map((n)->ismatch(srchterm, string(n)), vars);
@@ -16,6 +24,10 @@ function filterpaths(dir, srch)
     matches = filter((name)->ismatch(srchr,name), fpths)
     map((nm)->absdir*"/"*nm, matches)
 end
+
+
+
+# DESCRIBING NETWORK TOPOLOGY
 
 @doc """
 Make a function that filters out strings matching the hostname of process 1.\n
@@ -83,13 +95,18 @@ function localpids()
     topo = describepids(remote=1)
     topo[collect(keys(topo))[1]]
 end
-=#
+
+
+
+# PERFMORMANCE TESTING
 
 macro timeit(reps, expr)
    quote
        mean([@elapsed $expr for i in 1:$reps])
    end
 end
+
+
 
 # REPRESENTATION OF SHARED ARRAYS THAT WORKS ON REMOTES
 
@@ -106,6 +123,7 @@ function Base.display(S::SharedArray)
     repr = @fetchfrom validpid getrepresentation(S)
     print_with_color(:bold, repr)
 end
+
 
 
 # FOR BROADCASTING VARIABLES
@@ -146,18 +164,82 @@ macro broadcastfrom(pid, nm, val)
     end
 end
 
-# SYNCHRONOUS DICTIONARIES
 
-function __gettr(a) eval(a) end
 
-function collectmsgsatpid(pid::Int64, msgname::Symbol; pidfuncsymbol=workers)
-    wait(@spawnat pid begin 
-        @sync for j in eval(pidfuncsymbol)() 
-            val = remotecall_fetch(__gettr, j, Expr(:call, :getindex, msgname, j))
-            #val = @fetchfrom j eval(Expr(:call, :getindex, msgname, j))
-            @async eval(Expr(:call, :setindex!, msgname, val, j)) 
-        end 
-    end)
+# MESSAGING DICTIONARIES
+
+type MessageDict
+   pids::Array{Int64,1}
+   msgs::Dict{Int64,Any} 
+end
+
+#initialise a default msg
+function MessageDict()
+   pids = workers()
+   msgs = Dict([k => 0 for k in pids])
+   MessageDict(pids, msgs)
+end
+
+#initialise from a dict
+function MessageDict(D::Dict)
+   pids = collect(keys(D))
+   msgs = copy(D)
+   MessageDict(pids, msgs)
+end
+
+#initialise with pids and zeros of type X
+function MessageDict(pids::Array{Int64, 1}, X::AbstractArray)
+   z = zero(X)
+   msgs = Dict([k => copy(z) for k in pids])
+   MessageDict(pids, msgs)
+end
+
+#getting and setting indices operates on the M.msgs attribute
+function Base.getindex(M::MessageDict, index)
+   getindex(M.msgs, index)
+end
+
+function Base.setindex!(M::MessageDict, value, index)
+   setindex!(M.msgs, value, index)
+end
+
+#make the display unmessy
+function Base.display(M::MessageDict)
+   Base.display(typeof(M))
+   Base.display(M.msgs)
+end
+
+
+
+
+#MESSAGING DICTIONARY SYNCHRONISATION
+
+function distribute(msgname::Symbol, M::MessageDict)
+    @sync for j in M.pids
+        @async sendtosimple(j, msgname, M)
+    end
+end
+
+function collectmsgs(msgname::Symbol)
+    @sync for j in eval(:($(msgname).pids))
+        @async begin
+        val = remotecall_fetch(eval, j, Expr(:call, :getindex, msgname, j))
+        eval(Expr(:call, :setindex!, msgname, val, j)) 
+        end
+    end 
+end
+
+function collectmsgsatpid(pid::Int64, msgname::Symbol)
+    remotecall_wait(collectmsgs, pid, msgname)
+end
+
+function collectmsgsatmaster(msgname::Symbol, msglocal::Symbol)
+    @sync for j in eval(:($(msglocal).pids))
+        @async begin
+        val = remotecall_fetch(eval, j, Expr(:call, :getindex, msgname, j))
+        eval(Expr(:call, :setindex!, msglocal, val, j)) 
+        end
+    end 
 end
 
 macro swapmsgs(msgname)
@@ -168,25 +250,25 @@ macro swapmsgs(msgname)
     end 
 end
 
-#@broadcast :somemsg Dict([k => 0 for k in workers()])
-#[@spawnat k somemsg[k] = k for k in workers()]
-#@fetchfrom remotes[1] somemsg
 
-function collectrefs(doable::Expr; pidfunc=workers)
+
+# HARVESTING VALUES OR REFERENCES FROM REMOTES
+
+function harvestrefs(doable; pidfunc=workers)
     results = Dict()
     @sync for k in pidfunc()
-        @async results[k] = @spawnat k eval(doable)
+        @async results[k] = remotecall(eval, k, doable)
     end
     results
 end
-#somerefs = collectrefs(:(somemsg[myid()]))
 
-function quothfetchxfromn(n, x) 
-    quote @fetchfrom $n $x end 
+function harvest(doable; pidfunc=workers)
+    results = Dict()
+    @sync for k in pidfunc()
+        @async results[k] = remotecall_fetch(eval, k, doable)
+    end
+    results
 end
 
-function quothfetchxsubnfromn(n, x) 
-    quote @fetchfrom $n eval(Expr(:call, :getindex, $x, $n)) end 
-end
 
 end
