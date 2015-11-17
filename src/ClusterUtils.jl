@@ -148,12 +148,13 @@ end
 
 # SYNCHRONOUS DICTIONARIES
 
-function __gettr(a::Symbol) eval(a) end
+function __gettr(a) eval(a) end
 
 function collectmsgsatpid(pid::Int64, msgname::Symbol; pidfuncsymbol=workers)
     wait(@spawnat pid begin 
         @sync for j in eval(pidfuncsymbol)() 
-            val = @fetchfrom j eval(Expr(:call, :getindex, msgname, j))
+            val = remotecall_fetch(__gettr, j, Expr(:call, :getindex, msgname, j))
+            #val = @fetchfrom j eval(Expr(:call, :getindex, msgname, j))
             @async eval(Expr(:call, :setindex!, msgname, val, j)) 
         end 
     end)
