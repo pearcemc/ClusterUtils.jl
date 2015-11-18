@@ -166,61 +166,20 @@ function reaprefs(pids, doable::Doable; returntype=Any)
     reap(pids, doable; calltype=remotecall, returntype=returntype) 
 end
 
-# MESSAGING DICTIONARIES
-
-type MessageDict
-   pids::Array{Int64,1}
-   msgs::Dict{Int64,Any} 
-end
-
-#initialise a default msg
-function MessageDict()
-   pids = workers()
-   msgs = Dict([k => 0 for k in pids])
-   MessageDict(pids, msgs)
-end
-
-#initialise from a dict
-function MessageDict(D::Dict)
-   pids = collect(keys(D))
-   msgs = copy(D)
-   MessageDict(pids, msgs)
-end
-
-#initialise with pids and zeros of type X
-function MessageDict(pids::Array{Int64, 1}, X::AbstractArray)
-   z = zero(X)
-   msgs = Dict([k => copy(z) for k in pids])
-   MessageDict(pids, msgs)
-end
-
-#getting and setting indices operates on the M.msgs attribute
-function Base.getindex(M::MessageDict, index)
-   getindex(M.msgs, index)
-end
-
-function Base.setindex!(M::MessageDict, value, index)
-   setindex!(M.msgs, value, index)
-end
-
-#make the display unmessy
-function Base.display(M::MessageDict)
-   Base.display(typeof(M))
-   Base.display(M.msgs)
-end
-
-
-
-
 #MESSAGING DICTIONARY SYNCHRONISATION
 
-function collectmsgs(msgname::Symbol)
-    @sync for j in Main.eval(:($(msgname).pids))
+function collectmsgs(message::Dict)
+    @sync for j in keys(message)
         @async begin
         val = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
         Main.eval(Expr(:call, :setindex!, msgname, val, j)) 
         end
     end 
+end
+
+function collectmsgs(msgname::Symbol)
+    message = Main.eval(msgname)
+    collectmsgs(message)
 end
 
 function collectmsgssafe(msgname::Symbol)
