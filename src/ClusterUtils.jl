@@ -1,12 +1,11 @@
 
 module ClusterUtils
 
-export lookup, filterpaths, makefiltermaster, describepidsi, localpids
+export lookup, filterpaths, describepids, localpids
 export getrepresentation, display
-export sendto, sendtosimple, broadcast, broadcastfrom
-export MessageDict, distribute
+export Doable, sow, reap, reaprefs
+export MessageDict
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
-
 
 # FINDING DATA
 
@@ -25,6 +24,13 @@ function filterpaths(dir, srch)
     map((nm)->absdir*"/"*nm, matches)
 end
 
+# PERFMORMANCE TESTING
+
+macro timeit(reps, expr)
+   quote
+       mean([@elapsed $expr for i in 1:$reps])
+   end
+end
 
 
 # DESCRIBING NETWORK TOPOLOGY
@@ -97,18 +103,7 @@ function localpids()
 end
 
 
-
-# PERFMORMANCE TESTING
-
-macro timeit(reps, expr)
-   quote
-       mean([@elapsed $expr for i in 1:$reps])
-   end
-end
-
-
-
-# REPRESENTATION OF SHARED ARRAYS THAT WORKS ON REMOTES
+# REPRESENTATION OF SHARED ARRAYS THAT WORKS FOR SAs ON REMOTE HOSTS
 
 function getrepresentation(S)
     buf = IOBuffer()
@@ -128,43 +123,49 @@ end
 
 # FOR BROADCASTING VARIABLES
 
-function sendto(p::Int; args...)
-    for (nm, val) in args
-        @spawnat(p, eval(Main, Expr(:(=), nm, val)))
+function sow(p::Int64, nm::Symbol, val; mod=Main)
+    remotecall(Main.eval, p, mod, Expr(:(=), nm, val))
+end
+
+function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main)
+    refs = []
+    @sync for p in pids
+        @async push!(refs, sow(p, name, value; mod=mod))
     end
+    refs
 end
 
-function sendto(ps::Vector{Int}; args...)
-    for p in ps
-        sendto(p; args...)
+function sow(name::Symbol, value; mod=Main)
+    pids = workers()
+    sow(pids, name, value; mod=mod)
+end
+
+# HARVESTING VALUES OR REFERENCES FROM REMOTES
+
+Doable = Union{Symbol, Expr}
+
+
+function reap(pids::Array{Int64, 1}, doable::Doable; calltype=remotecall_fetch)
+    results = Dict()
+    @sync for k in pids
+        @async results[k] = remotecall_fetch(Main.eval, k, doable)
     end
+    results
 end
 
-macro sendto(p, nm, val)
-    return :( sendtosimple($p, $nm, $val) )
+function reap(doable::Doable; calltype=remotecall_fetch)
+    pids = workers()
+    reap(pids, doable; calltype=calltype) 
 end
 
-
-function sendtosimple(p::Int, nm, val; mod=Main)
-    ref = @spawnat(p, eval(mod, Expr(:(=), nm, val)))
+function reap(pid::Int64, doable::Doable; calltype=remotecall_fetch)
+    pids = [pid];
+    reap(pids, doable; calltype=calltype) 
 end
 
-
-macro broadcast(nm, val)
-    quote
-    @sync for p in workers()
-        @async sendtosimple(p, $nm, $val)
-    end
-    end
+function reaprefs(pids, doable::Doable)
+    reap(pids, doable; calltype=remotecall) 
 end
-
-macro broadcastfrom(pid, nm, val)
-    quote
-        @spawnat $pid @broadcast $nm $val
-    end
-end
-
-
 
 # MESSAGING DICTIONARIES
 
@@ -214,32 +215,35 @@ end
 
 #MESSAGING DICTIONARY SYNCHRONISATION
 
-function distribute(msgname::Symbol, M::MessageDict)
-    @sync for j in M.pids
-        @async sendtosimple(j, msgname, M)
+function collectmsgs(msgname::Symbol)
+    @sync for j in Main.eval(:($(msgname).pids))
+        @async begin
+        val = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
+        Main.eval(Expr(:call, :setindex!, msgname, val, j)) 
+        end
+    end 
+end
+
+
+function collectmsgssafe(msgname::Symbol)
+    if(isdefined(msgname))
+    @sync for j in Main.eval(:($(msgname).pids))
+        @async begin
+        val = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
+        Main.eval(Expr(:call, :setindex!, msgname, val, j)) 
+        end
+    end 
     end
 end
 
-function collectmsgs(msgname::Symbol)
-    @sync for j in eval(:($(msgname).pids))
+function collectmsgsatmaster(msgname::Symbol, msglocal::MessageDict)
+    @sync for j in msglocal.pids
         @async begin
-        val = remotecall_fetch(eval, j, Expr(:call, :getindex, msgname, j))
-        eval(Expr(:call, :setindex!, msgname, val, j)) 
+        msglocal[j] = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
+        #Main.eval(Expr(:call, :setindex!, :(msglocal), val, j)) 
         end
     end 
-end
-
-function collectmsgsatpid(pid::Int64, msgname::Symbol)
-    remotecall_wait(collectmsgs, pid, msgname)
-end
-
-function collectmsgsatmaster(msgname::Symbol, msglocal::Symbol)
-    @sync for j in eval(:($(msglocal).pids))
-        @async begin
-        val = remotecall_fetch(eval, j, Expr(:call, :getindex, msgname, j))
-        eval(Expr(:call, :setindex!, msglocal, val, j)) 
-        end
-    end 
+    msglocal
 end
 
 macro swapmsgs(msgname)
@@ -250,25 +254,19 @@ macro swapmsgs(msgname)
     end 
 end
 
-
-
-# HARVESTING VALUES OR REFERENCES FROM REMOTES
-
-function harvestrefs(doable; pidfunc=workers)
-    results = Dict()
-    @sync for k in pidfunc()
-        @async results[k] = remotecall(eval, k, doable)
-    end
-    results
+function swapmsgs(msgname::Symbol)
+    @sync for pid in workers()
+         @async remotecall_wait(collectmsgssafe, pid, msgname)
+    end   
 end
 
-function harvest(doable; pidfunc=workers)
-    results = Dict()
-    @sync for k in pidfunc()
-        @async results[k] = remotecall_fetch(eval, k, doable)
-    end
-    results
+function swapmsgs(pids::Array{Int64,1}, msgname::Symbol)
+    @sync for pid in pids
+         @async remotecall_wait(collectmsgs, pid, msgname)
+    end   
 end
+
+
 
 
 end
