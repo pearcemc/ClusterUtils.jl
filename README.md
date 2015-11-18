@@ -125,7 +125,7 @@ remotes = workers()
 #  4
 #  [...]
 
-sow(remotes, :somemsg, MessageDict() )
+sow(remotes, :somemsg, MessageDict() );
 
 isdefined(:somemsg)
 #false
