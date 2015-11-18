@@ -152,52 +152,45 @@ function reap(pids::Array{Int64, 1}, doable::Doable; callstyle=remotecall_fetch,
     results
 end
 
-function reap(doable::Doable; calltype=remotecall_fetch, returntype=Any)
+function reap(doable::Doable; callstyle=remotecall_fetch, returntype=Any)
     pids = workers()
-    reap(pids, doable; calltype=calltype, returntype=returntype) 
+    reap(pids, doable; callstyle=callstyle, returntype=returntype) 
 end
 
-function reap(pid::Int64, doable::Doable; calltype=remotecall_fetch, returntype=Any)
+function reap(pid::Int64, doable::Doable; callstyle=remotecall_fetch, returntype=Any)
     pids = [pid];
-    reap(pids, doable; calltype=calltype, returntype=returntype) 
+    reap(pids, doable; callstyle=callstyle, returntype=returntype) 
 end
 
 function reaprefs(pids, doable::Doable; returntype=Any)
-    reap(pids, doable; calltype=remotecall, returntype=returntype) 
+    reap(pids, doable; callstyle=remotecall, returntype=returntype) 
 end
 
 #MESSAGING DICTIONARY SYNCHRONISATION
 
-function collectmsgs(message::Dict)
-    @sync for j in keys(message)
-        @async begin
-        val = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
-        Main.eval(Expr(:call, :setindex!, msgname, val, j)) 
-        end
-    end 
-end
-
 function collectmsgs(msgname::Symbol)
-    message = Main.eval(msgname)
-    collectmsgs(message)
-end
-
-function collectmsgssafe(msgname::Symbol)
-    if(isdefined(msgname))
-    @sync for j in Main.eval(:($(msgname).pids))
+    @sync for j in Main.eval( :(keys($(msgname))) )
         @async begin
         val = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
         Main.eval(Expr(:call, :setindex!, msgname, val, j)) 
         end
     end 
-    end
 end
 
-function collectmsgsatmaster(msgname::Symbol, msglocal::MessageDict)
-    @sync for j in msglocal.pids
+function collectmsgs(msgname::Symbol, msglocal::Dict)
+    @sync for j in keys(msglocal)
         @async begin
         msglocal[j] = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
-        #Main.eval(Expr(:call, :setindex!, :(msglocal), val, j)) 
+        end
+    end 
+    msglocal
+end
+
+function collectmsgs(msgname::Symbol, pids::Array{Int64, 1})
+    msglocal = Dict{Int64, Any}()
+    @sync for j in pids
+        @async begin
+        msglocal[j] = remotecall_fetch(Main.eval, j, Expr(:call, :getindex, msgname, j))
         end
     end 
     msglocal
@@ -213,7 +206,5 @@ function swapmsgs(msgname::Symbol)
     pids = workers()
     swapmsgs(pids, msgname) 
 end
-
-
 
 end

@@ -119,13 +119,15 @@ Here we use some remote `MessageDict`s to swap messages between different proces
 @everywhere using ClusterUtils
 
 remotes = workers()
+
 #24-element Array{Int64,1}:
 #  2
 #  3
 #  4
 #  [...]
 
-sow(remotes, :somemsg, MessageDict() );
+msgmaster = Dict([k=>0 for k in remotes]);
+sow(remotes, :somemsg, msgmaster );
 
 isdefined(:somemsg)
 #false
@@ -138,7 +140,7 @@ isdefined(:somemsg)
 #  7  => 0
 # [...]
 
-[@spawnat k somemsg.msgs[k] = 2k for k in remotes];
+[@spawnat k somemsg[k] = 2k for k in remotes];
 
 @fetchfrom remotes[1] somemsg
 #ClusterUtils.MessageDict
@@ -162,48 +164,16 @@ ClusterUtils.@timeit 100 swapmsgs( workers(), :somemsg )
 #0.016565912109999994
 ```
 
-Here we use a MessageDict held on process 1 to aggregate work done on remote servers.
+Carrying on from the previous example. Suppose we did not need to `swapmsgs` between workers, but instead only to aggregate the results on a single process.
+Here we use a Dict held on process 1 to aggregate work done on remote servers.
 
 ```julia
-@everywhere using ClusterUtils
-
-remotes = workers()
-#24-element Array{Int64,1}:
-#  2
-#  3
-#  4
-#  [...]
-
-msgmaster = MessageDict(remotes, randn(3))
-#ClusterUtils.MessageDict
+collectmsgs(:somemsg, remotes)
 #Dict{Int64,Any} with 24 entries:
-#  2  => [0.0,0.0,0.0]
-#  16 => [0.0,0.0,0.0]
-#  11 => [0.0,0.0,0.0]
-#  [...]
-
-msgnameonremotes = :msgremote
-#:msgremote
-
-sow(msgnameonremotes, msgmaster);
-
-[@spawnat k msgremote[k] = randn(3) for k in remotes];
-
-remotecall_fetch(eval, remotes[1], msgnameonremotes)
-#ClusterUtils.MessageDict
-#Dict{Int64,Any} with 24 entries:
-#  2  => [2.515734256502936,1.521004010709128,-0.2635622270511424]
-#  11 => [0.0,0.0,0.0]
-#  7  => [0.0,0.0,0.0]
-#  [...]
-
-collectmsgsatmaster(msgnameonremotes, msgmaster)
-#ClusterUtils.MessageDict
-#Dict{Int64,Any} with 24 entries:
-#  2  => [2.515734256502936,1.521004010709128,-0.2635622270511424]
-#  16 => [0.7882547595085879,-0.2596569269024375,0.22735615312570082]
-#  11 => [-0.9067633589631379,-0.5787807122606919,0.7902320035717597]
-#  [...]
+#  2  => 4
+#  16 => 32
+#  11 => 22
+# [...]
 ```
 
 
