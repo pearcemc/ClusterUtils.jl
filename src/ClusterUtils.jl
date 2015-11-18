@@ -144,27 +144,26 @@ end
 
 Doable = Union{Symbol, Expr}
 
-
-function reap(pids::Array{Int64, 1}, doable::Doable; calltype=remotecall_fetch)
-    results = Dict()
+function reap(pids::Array{Int64, 1}, doable::Doable; callstyle=remotecall_fetch, returntype=Any)
+    results = Dict{Int64, returntype}()
     @sync for k in pids
-        @async results[k] = remotecall_fetch(Main.eval, k, doable)
+        @async results[k] = callstyle(Main.eval, k, doable)
     end
     results
 end
 
-function reap(doable::Doable; calltype=remotecall_fetch)
+function reap(doable::Doable; calltype=remotecall_fetch, returntype=Any)
     pids = workers()
-    reap(pids, doable; calltype=calltype) 
+    reap(pids, doable; calltype=calltype, returntype=returntype) 
 end
 
-function reap(pid::Int64, doable::Doable; calltype=remotecall_fetch)
+function reap(pid::Int64, doable::Doable; calltype=remotecall_fetch, returntype=Any)
     pids = [pid];
-    reap(pids, doable; calltype=calltype) 
+    reap(pids, doable; calltype=calltype, returntype=returntype) 
 end
 
-function reaprefs(pids, doable::Doable)
-    reap(pids, doable; calltype=remotecall) 
+function reaprefs(pids, doable::Doable; returntype=Any)
+    reap(pids, doable; calltype=remotecall, returntype=returntype) 
 end
 
 # MESSAGING DICTIONARIES
