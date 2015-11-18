@@ -125,7 +125,7 @@ remotes = workers()
 #  4
 #  [...]
 
-sowpids(remotes, :somemsg, MessageDict() )
+sow(remotes, :somemsg, MessageDict() )
 
 isdefined(:somemsg)
 #false
@@ -138,12 +138,7 @@ isdefined(:somemsg)
 #  7  => 0
 # [...]
 
-[@spawnat k somemsg.msgs[k] = 2k for k in remotes]
-#24-element Array{Any,1}:
-# RemoteRef{Channel{Any}}(2,1,437) 
-# RemoteRef{Channel{Any}}(3,1,438) 
-# RemoteRef{Channel{Any}}(4,1,439) 
-# [...]
+[@spawnat k somemsg.msgs[k] = 2k for k in remotes];
 
 @fetchfrom remotes[1] somemsg
 #ClusterUtils.MessageDict
