@@ -224,7 +224,6 @@ function collectmsgs(msgname::Symbol)
     end 
 end
 
-
 function collectmsgssafe(msgname::Symbol)
     if(isdefined(msgname))
     @sync for j in Main.eval(:($(msgname).pids))
@@ -246,26 +245,16 @@ function collectmsgsatmaster(msgname::Symbol, msglocal::MessageDict)
     msglocal
 end
 
-macro swapmsgs(msgname)
-    quote 
-    @sync for pid in workers()
-         @async collectmsgsatpid(pid, $msgname)
-    end   
-    end 
-end
-
-function swapmsgs(msgname::Symbol)
-    @sync for pid in workers()
-         @async remotecall_wait(collectmsgssafe, pid, msgname)
-    end   
-end
-
 function swapmsgs(pids::Array{Int64,1}, msgname::Symbol)
     @sync for pid in pids
          @async remotecall_wait(collectmsgs, pid, msgname)
     end   
 end
 
+function swapmsgs(msgname::Symbol)
+    pids = workers()
+    swapmsgs(pids, msgname) 
+end
 
 
 
