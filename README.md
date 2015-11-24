@@ -176,5 +176,35 @@ collectmsgs(:somemsg, remotes)
 # [...]
 ```
 
+## Storing and recovering data
+
+Two functions `save` and `load` are provided for conveniently storing and recovering data, built on top of `Base.serialize`. First usage is for objects of `Any` type:
+
+```julia
+save("temp.jlf", randn(5))
+
+load("temp.jlf")
+#5-element Array{Float64,1}:
+# -1.41679  
+# -1.2292   
+#  0.103825 
+#  0.0804196
+#  1.4737   
+```
+
+Second usage takes a list of symbols for variables defined in Main (default kwarg `mod=Main`), turns them into a `Dict` and `save`s that.
+
+```julia
+R = [1,2,3];
+
+X = "Fnordic";
+
+save("temp.jlf", :X, :R)
+
+load("temp.jlf")
+#Dict{Symbol,Any} with 2 entries:
+#  :R => [1,2,3]
+#  :X => "Fnordic"
+```
 
 
