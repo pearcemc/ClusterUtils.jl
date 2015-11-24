@@ -1,13 +1,14 @@
 
 module ClusterUtils
 
-export lookup, filterpaths, describepids, localpids
+export lookup, filterpaths, dictify, save, load
+export @timeit
+export describepids, localpids
 export getrepresentation, display
 export Doable, sow, reap, reaprefs
-export MessageDict
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
 
-# FINDING DATA
+# FINDING, STORING, LOADING DATA
 
 function lookup(modname::Module, srchterm::Regex)
     vars = names(modname, true)
@@ -15,13 +16,34 @@ function lookup(modname::Module, srchterm::Regex)
     vars[indx]
 end
 
-
 function filterpaths(dir, srch)
     srchr = Regex(srch)
     absdir = abspath(dir)
     fpths = readdir(absdir)
     matches = filter((name)->ismatch(srchr,name), fpths)
     map((nm)->absdir*"/"*nm, matches)
+end
+
+function dictify(syms::Symbol...; mod=Main)
+    Dict([s => eval(mod, s) for s in syms])
+end
+
+function save(fp::AbstractString, A::Any)
+    f = open(fp, "w+")
+    serialize(f, A)
+    close(f)
+end
+
+function save(fp::AbstractString, syms::Symbol...)
+    D = dictify(syms...)
+    save(fp, D)
+end
+
+function load(fp)
+    f = open(fp, "r")
+    O = deserialize(f)
+    close(f)
+    O
 end
 
 # PERFMORMANCE TESTING
@@ -69,9 +91,9 @@ function describepids(pids; filterfn=(x)->true)
     end
 
     # assemble the groups of processes keyed by their representatives
-    topo = Dict()
+    topo = Dict{Int64, Array{Int64, 1}}()
     for (i,p) in enumerate(representative)
-        topo[p] = constituency[i]
+        topo[minimum(constituency[i])] = constituency[i]
     end
 
     topo
@@ -102,6 +124,32 @@ function localpids()
     topo[collect(keys(topo))[1]]
 end
 
+# CHUNKING OF ARRAYS
+
+function evenchunks(dims::Tuple{Int, Int}; axis=1, remote=0)
+
+    remtop = describepids(remote=remote)
+    ncomps = length(keys(remtop))
+
+    chunksz = round(Int, dims[axis] / ncomps)
+    chunkst = []
+    chunknd = []
+    for i in 0:(ncomps-1)
+        st = 1 + i*chunksz
+        nd = (i+1)*chunksz
+        push!(chunkst, st)
+        push!(chunknd, nd)
+    end
+
+    chunkdc = Dict()
+    for (i,k) in enumerate(keys(remtop))
+        for p in remtop[k]
+            chunkdc[p] = (chunkst[i], chunknd[i])
+        end
+    end
+
+    chunkdc
+end
 
 # REPRESENTATION OF SHARED ARRAYS THAT WORKS FOR SAs ON REMOTE HOSTS
 
@@ -128,7 +176,7 @@ function sow(p::Int64, nm::Symbol, val; mod=Main)
 end
 
 function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main)
-    refs = []
+    refs = Array{RemoteRef, 1}([])
     @sync for p in pids
         @async push!(refs, sow(p, name, value; mod=mod))
     end
