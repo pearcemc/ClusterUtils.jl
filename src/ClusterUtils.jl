@@ -4,6 +4,7 @@ module ClusterUtils
 export lookup, filterpaths, dictify, save, load
 export @timeit
 export describepids, localpids
+export evenchunks
 export getrepresentation, display
 export Doable, sow, reap, reaprefs
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
@@ -126,29 +127,18 @@ end
 
 # CHUNKING OF ARRAYS
 
-function evenchunks(dims::Tuple{Int, Int}; axis=1, remote=0)
+function chunkit(axlen::Int, ncomps::Int)
+    
+    chunksz = map(Int64, zeros(ncomps))
 
-    remtop = describepids(remote=remote)
-    ncomps = length(keys(remtop))
-
-    chunksz = round(Int, dims[axis] / ncomps)
-    chunkst = []
-    chunknd = []
-    for i in 0:(ncomps-1)
-        st = 1 + i*chunksz
-        nd = (i+1)*chunksz
-        push!(chunkst, st)
-        push!(chunknd, nd)
+    for i in 1:axlen
+        chunksz[i%ncomps + 1] += 1
     end
 
-    chunkdc = Dict()
-    for (i,k) in enumerate(keys(remtop))
-        for p in remtop[k]
-            chunkdc[p] = (chunkst[i], chunknd[i])
-        end
-    end
+    chunknd = cumsum(chunksz)
+    chunkst = vcat(0, chunknd[1:end-1]) + 1
 
-    chunkdc
+    [chunkst[i]:chunknd[i] for i in 1:ncomps]
 end
 
 # REPRESENTATION OF SHARED ARRAYS THAT WORKS FOR SAs ON REMOTE HOSTS
@@ -172,7 +162,7 @@ end
 # FOR BROADCASTING VARIABLES
 
 function sow(p::Int64, nm::Symbol, val; mod=Main)
-    remotecall(Main.eval, p, mod, Expr(:(=), nm, val))
+    remotecall_wait(Main.eval, p, mod, Expr(:(=), nm, val))
 end
 
 function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main)

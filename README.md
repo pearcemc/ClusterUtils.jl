@@ -3,6 +3,7 @@
 
 Message passing, control and display utilities for distributed and parallel computing.
 
+
 ## Discovering network topology
 
 The next example is of a utility to describe which processes are on which hosts as this is useful for SharedArray creation.
