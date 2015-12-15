@@ -94,7 +94,8 @@ function describepids(pids; filterfn=(x)->true)
     # assemble the groups of processes keyed by their representatives
     topo = Dict{Int64, Array{Int64, 1}}()
     for (i,p) in enumerate(representative)
-        topo[minimum(constituency[i])] = constituency[i]
+        c = sort(constituency[i])
+        topo[c[1]] = c
     end
 
     topo
@@ -123,6 +124,15 @@ end
 function localpids()
     topo = describepids(remote=1)
     topo[collect(keys(topo))[1]]
+end
+
+@doc """
+For splitting work evenly across computers.
+""" ->
+function preferredorder(topology)
+    arrtop = reduce(hcat, values(topology))
+    arrrow = [arrtop[i,:]' for i in 1:size(arrtop)[1]]
+    reduce(vcat, arrrow)
 end
 
 # CHUNKING OF ARRAYS
@@ -161,12 +171,13 @@ end
 
 # FOR BROADCASTING VARIABLES
 
-function sow(p::Int64, nm::Symbol, val; mod=Main, callstyle=remotecall_wait)
-    callstyle(Main.eval, p, mod, Expr(:(=), nm, val))
+Doable = Union{Symbol, Expr}
+
+function sow(pid::Int64, name::Doable, value; mod=Main, callstyle=remotecall_wait)
+    callstyle(Main.eval, pid, mod, Expr(:(=), name, value))
 end
 
-function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main, callstyle=remotecall_wait)
-    #refs = Array{RemoteRef, 1}([])
+function sow(pids::Array{Int64, 1}, name::Doable, value; mod=Main, callstyle=remotecall_wait)
     refs = Dict{Int64, RemoteRef}()
     @sync for p in pids
         @async refs[p] = sow(p, name, value; mod=mod, callstyle=callstyle)
@@ -174,14 +185,12 @@ function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main, callstyle=rem
     refs
 end
 
-function sow(name::Symbol, value; mod=Main, callstyle=remotecall_wait)
+function sow(name::Doable, value; mod=Main, callstyle=remotecall_wait)
     pids = workers()
     sow(pids, name, value; mod=mod, callstyle=callstyle)
 end
 
 # HARVESTING VALUES OR REFERENCES FROM REMOTES
-
-Doable = Union{Symbol, Expr}
 
 function reap(pids::Array{Int64, 1}, doable::Doable; callstyle=remotecall_fetch, returntype=Any)
     results = Dict{Int64, returntype}()
