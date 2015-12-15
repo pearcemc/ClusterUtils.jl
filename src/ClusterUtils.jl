@@ -4,7 +4,7 @@ module ClusterUtils
 export lookup, filterpaths, dictify, save, load
 export @timeit
 export describepids, localpids
-export evenchunks
+export chunkit
 export getrepresentation, display
 export Doable, sow, reap, reaprefs
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
@@ -161,21 +161,22 @@ end
 
 # FOR BROADCASTING VARIABLES
 
-function sow(p::Int64, nm::Symbol, val; mod=Main)
-    remotecall_wait(Main.eval, p, mod, Expr(:(=), nm, val))
+function sow(p::Int64, nm::Symbol, val; mod=Main, callstyle=remotecall_wait)
+    callstyle(Main.eval, p, mod, Expr(:(=), nm, val))
 end
 
-function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main)
-    refs = Array{RemoteRef, 1}([])
+function sow(pids::Array{Int64, 1}, name::Symbol, value; mod=Main, callstyle=remotecall_wait)
+    #refs = Array{RemoteRef, 1}([])
+    refs = Dict{Int64, RemoteRef}()
     @sync for p in pids
-        @async push!(refs, sow(p, name, value; mod=mod))
+        @async refs[p] = sow(p, name, value; mod=mod, callstyle=callstyle)
     end
     refs
 end
 
-function sow(name::Symbol, value; mod=Main)
+function sow(name::Symbol, value; mod=Main, callstyle=remotecall_wait)
     pids = workers()
-    sow(pids, name, value; mod=mod)
+    sow(pids, name, value; mod=mod, callstyle=callstyle)
 end
 
 # HARVESTING VALUES OR REFERENCES FROM REMOTES
