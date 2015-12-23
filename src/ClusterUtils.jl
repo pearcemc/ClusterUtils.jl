@@ -132,7 +132,7 @@ For splitting work evenly across computers.
 function preferredorder(topology)
     arrtop = reduce(hcat, values(topology))
     arrrow = [arrtop[i,:]' for i in 1:size(arrtop)[1]]
-    reduce(vcat, arrrow)
+    vec(reduce(vcat, arrrow))
 end
 
 # CHUNKING OF ARRAYS
