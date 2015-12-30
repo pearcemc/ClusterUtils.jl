@@ -255,4 +255,30 @@ function swapmsgs(msgname::Symbol)
     swapmsgs(pids, msgname) 
 end
 
+
+###  Manipulation utilities
+
+function stitch(pids::Array{Int64,1}, expr_::Doable, cattype::Function)
+    parts = reap(pids, expr_)
+    reduce(cattype, [parts[k] for k in sort(collect(keys(parts)))])
+end
+
+function stitch(pid::Int64, expr_::Doable, cattype::Function)
+    stitch([pid], expr_, cattype)
+end
+
+function stitch(pids::Array{Int64,1}, expr_::Doable)
+    stitch(pids, expr_, vcat)
+end
+
+function stitch(pid::Int64, expr_::Doable)
+    stitch([pid], expr_, vcat)
+end
+
+function stitch(expr_::Doable)
+    pids = workers()
+    stitch(pids, expr_, vcat)
+end
+
+
 end
