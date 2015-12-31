@@ -8,6 +8,7 @@ export chunkit
 export getrepresentation, display
 export Doable, sow, reap, reaprefs
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
+export stitch
 
 # FINDING, STORING, LOADING DATA
 
