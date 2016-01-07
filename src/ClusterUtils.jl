@@ -48,14 +48,6 @@ function load(fp)
     O
 end
 
-# PERFMORMANCE TESTING
-
-macro timeit(reps, expr)
-   quote
-       mean([@elapsed $expr for i in 1:$reps])
-   end
-end
-
 
 # DESCRIBING NETWORK TOPOLOGY
 
@@ -281,5 +273,16 @@ function stitch(expr_::Doable)
     stitch(pids, expr_, vcat)
 end
 
+# PERFMORMANCE TESTING
+
+macro timeit(reps, expr)
+   quote
+       mean([@elapsed $expr for i in 1:$reps])
+   end
+end
+
+function checksame(thing::Symbol)
+    @assert length(Set(values(reap(thing))))==1
+end
 
 end
