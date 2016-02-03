@@ -56,7 +56,7 @@ Make a function that filters out strings matching the hostname of process 1.\n
 """ ->
 function makefiltermaster()
     #master_node = strip(remotecall_fetch(readall, 1, `hostname`), '\n')
-    master_node = reap(1, :(gethostname()))[1]
+    master_node = strip(reap(1, :(gethostname()))[1], '\n')
     function filtermaster(x)
         x != master_node
     end
@@ -67,8 +67,8 @@ end
 function describepids(pids; filterfn=(x)->true)
 
     # facts about the machines the processes run on
-    #machines = [strip(remotecall_fetch(readall, w, `hostname`), '\n') for w in pids]
-    machines = collect(values(reap(procs(), :(gethostname()))))
+    #machines = [strip(remotecall_fetch(readall, w, `hostname`), '\n') for w in pids] #doesn't work on 0.4
+    machines = map(p->strip(reap(p, :(gethostname()))[p], '\n'), pids)
     machine_names = sort!(collect(Set(machines)))
     machine_names = filter(filterfn, machine_names)
     num_machines = length(machine_names)
