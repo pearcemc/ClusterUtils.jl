@@ -66,7 +66,8 @@ end
 function describepids(pids; filterfn=(x)->true)
 
     # facts about the machines the processes run on
-    machines = [strip(remotecall_fetch(readall, w, `hostname`), '\n') for w in pids]
+    #machines = [strip(remotecall_fetch(readall, w, `hostname`), '\n') for w in pids]
+    machines = collect(values(reap(procs(), :(gethostname()))))
     machine_names = sort!(collect(Set(machines)))
     machine_names = filter(filterfn, machine_names)
     num_machines = length(machine_names)
