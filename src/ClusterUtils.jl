@@ -56,7 +56,7 @@ Make a function that filters out strings matching the hostname of process 1.\n
 """ ->
 function makefiltermaster()
     #master_node = strip(remotecall_fetch(readall, 1, `hostname`), '\n')
-    master_node = reap(1, :(gethostname()))
+    master_node = reap(1, :(gethostname()))[1]
     function filtermaster(x)
         x != master_node
     end
