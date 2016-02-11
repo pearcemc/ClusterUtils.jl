@@ -130,6 +130,16 @@ function preferredorder(topology)
     vec(reduce(vcat, arrrow))
 end
 
+function invtopology(topology)
+    myrep = Dict()
+    for rep in keys(topology)
+        for pid in topology[rep]
+            myrep[pid] = rep
+        end
+    end
+    return myrep
+end
+
 # CHUNKING OF ARRAYS
 
 function chunkit(axlen::Int, ncomps::Int)
