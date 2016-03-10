@@ -3,9 +3,9 @@ module ClusterUtils
 
 export lookup, filterpaths, dictify, save, load
 export @timeit
-export describepids, localpids
+export describepids, localpids, invtopology
 export chunkit
-export getrepresentation, display
+export getrepresentation, display, broadcast_shared
 export Doable, sow, reap, reaprefs
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
 export stitch
@@ -173,6 +173,24 @@ function Base.display(S::SharedArray)
 end
 
 
+function broadcast_shared(topo, elty_, value, symb)
+
+    # CONFIG INFO
+    reps_ = collect(keys(topo))
+
+    # SHAPE
+    T,V = size(value)
+ 
+    # CREATE ON A SINGLE PROCESS ON EACH NODE
+    remote_refs = sow(reps, symb, :( copy!(SharedArray($elty_, ($T, $V), pids=[$topo[myid()]]), $value) ));
+
+    # MAKE ARRAY ACCESSIBLE ON ALL OTHER PROCS ON NODE
+    @sync for r in reps_
+        @async begin
+        sow(topo[r], symb, :(fetch($remote_refs[$r])));
+        end
+    end
+end
 
 # FOR BROADCASTING VARIABLES
 
