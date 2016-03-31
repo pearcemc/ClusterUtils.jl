@@ -10,6 +10,9 @@ export Doable, sow, reap, reaprefs
 export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
 export stitch
 
+import Base.del_client
+export Base.del_client 
+
 # FINDING, STORING, LOADING DATA
 
 function lookup(modname::Module, srchterm::Regex)
@@ -192,12 +195,39 @@ function broadcast_shared(topo, elty_, value, symb)
     end
 end
 
+
+#workarounds for #14445
+
+function del_client(pg, id, client)
+# As a workaround to issue https://github.com/JuliaLang/julia/issues/14445
+# the dict/set updates are executed asynchronously so that they do
+# not occur in the midst of a gc. The `@async` prefix must be removed once
+# 14445 is fixed.
+    @async begin
+        rv = get(pg.refs, id, false)
+        if rv != false
+            delete!(rv.clientset, client)
+            if isempty(rv.clientset)
+                delete!(pg.refs, id)
+                #print("$(myid()) collected $id\n")
+            end
+        end
+    end
+    nothing
+end
+
+
 # FOR BROADCASTING VARIABLES
 
 Doable = Union{Symbol, Expr}
 
+function yieldfirst(todo::Doable) #required while bug 14445 still around
+    return :(yield(); $todo)
+end
+
 function sow(pid::Int64, name::Doable, value; mod=Main, callstyle=remotecall_wait)
-    callstyle(Main.eval, pid, mod, Expr(:(=), name, value))
+    todo = Expr(:(=), name, value) 
+    callstyle(Main.eval, pid, mod, yieldfirst(todo))
 end
 
 function sow(pids::Array{Int64, 1}, name::Doable, value; mod=Main, callstyle=remotecall_wait)
@@ -217,8 +247,9 @@ end
 
 function reap(pids::Array{Int64, 1}, doable::Doable; callstyle=remotecall_fetch, returntype=Any)
     results = Dict{Int64, returntype}()
-    @sync for k in pids
-        @async results[k] = callstyle(Main.eval, k, doable)
+    todo = yieldfirst(doable) 
+    @sync for pid in pids
+        @async results[pid] = callstyle(Main.eval, pid, todo)
     end
     results
 end
