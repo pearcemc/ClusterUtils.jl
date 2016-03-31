@@ -11,7 +11,7 @@ export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
 export stitch
 
 import Base.del_client
-export Base.del_client 
+export del_client 
 
 # FINDING, STORING, LOADING DATA
 
