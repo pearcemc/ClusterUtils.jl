@@ -127,7 +127,9 @@ reps = collect(keys(topo)) #a representative process from each machine
 #  62
 # 110
 
-broadcast_shared(topo, Float32, rand(4,4), :foo); # initialises a SharedArray using the same random matrix on each machine
+
+# initialise a SharedArray using the same random matrix on each machine:
+broadcast_shared(topo, Float32, rand(4,4), :foo); 
 
 sow(reps, :(foo[1,:]), :(map(Float32, pi)))
 
