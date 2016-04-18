@@ -13,57 +13,25 @@ With no arguments only remote processes are described.
 ```julia
 @everywhere using ClusterUtils
 
-describepids()
+topo = describepids() # only procs on remote machines
 #Dict{Any,Any} with 2 entries:
 #  13 => [2,3,4,5,6,7,8,9,10,11,12,13]
 #  25 => [14,15,16,17,18,19,20,21,22,23,24,25]
 
-describepids(remote=1)
+topo = describepids(remote=1) # only procs on local machine
 #Dict{Any,Any} with 1 entry:
 #  1 => [1]
 
-describepids(remote=2)
+topo = describepids(remote=2) # procs on all machines
 #Dict{Any,Any} with 3 entries:
 #  13 => [2,3,4,5,6,7,8,9,10,11,12,13]
 #  25 => [14,15,16,17,18,19,20,21,22,23,24,25]
 #  1  => [1]
 
-describepids(procs(); filterfn=(x)->ismatch(r"tesla", x)) #filter based on `hostname`
+topo = describepids(procs(); filterfn=(x)->ismatch(r"tesla", x)) # custom filter based on `hostname`
 #Dict{Any,Any} with 2 entries:
 #  13 => [2,3,4,5,6,7,8,9,10,11,12,13]
 #  25 => [14,15,16,17,18,19,20,21,22,23,24,25]
-```
-## Displaying SharedArrays
-
-Display of `SharedArray`s is not well behaved when all processes with access to the underlying shared memory are on a remote host.
-
-```julia
-julia> using ClusterManagers
-
-julia> remotes = addprocs(SlurmManager(24), nodes=2)
-#srun: job 1892137 queued and waiting for resources
-#srun: job 1892137 has been allocated resources
-#24-element Array{Int64,1}:t of 24
-#  2
-#  3
-#  4
-#  5
-#  6
-# [...]
-
-S = SharedArray(Int, (3,4), init = S -> S[localindexes(S)] = myid(), pids=[2,3,4,5])
-#3x4 SharedArray{Int64,2}:
-# #undef  #undef  #undef  #undef
-# #undef  #undef  #undef  #undef
-# #undef  #undef  #undef  #undef
-
-@everywhere using ClusterUtils
-
-T = SharedArray(Int, (3,4), init = S -> S[localindexes(S)] = myid(), pids=[2,3,4,5])
-#3x4 SharedArray{Int64,2}:
-# 2  3  4  5
-# 2  3  4  5
-# 2  3  4  5
 ```
 
 ## Sending variables to remotes
@@ -110,9 +78,51 @@ sow(4, :specificbob, :(sqrt(myid())); mod=ClusterUtils)
 @fetchfrom 4 ClusterUtils.specificbob
 #2.0
 
+# map-reduce operations 
+reduce(+, values(reap([2,3,4], :(rand(5).^2)))) #add together 3 vectors of 5 squared uniform random variables
+#5-element Array{Float64,1}:
+# 1.61008 
+# 2.43127 
+# 2.10954 
+# 0.696425
+# 3.06037 
+
+
 ```
 
-## Message passing
+
+## Storing and recovering data
+
+Two functions `save` and `load` are provided for conveniently storing and recovering data, built on top of `Base.serialize`. First usage is for objects of `Any` type:
+
+```julia
+save("temp.jlf", randn(5))
+
+load("temp.jlf")
+#5-element Array{Float64,1}:
+# -1.41679  
+# -1.2292   
+#  0.103825 
+#  0.0804196
+#  1.4737   
+```
+
+Second usage takes a list of symbols for variables defined in Main (default kwarg `mod=Main`), turns them into a `Dict` and `save`s that.
+
+```julia
+R = [1,2,3];
+
+X = "Fnordic";
+
+save("temp.jlf", :X, :R)
+
+load("temp.jlf")
+#Dict{Symbol,Any} with 2 entries:
+#  :R => [1,2,3]
+#  :X => "Fnordic"
+```
+
+## Message passing (experimental)
 
 Here we use some remote `MessageDict`s to swap messages between different processes.
 
@@ -177,35 +187,11 @@ collectmsgs(:somemsg, remotes)
 # [...]
 ```
 
-## Storing and recovering data
 
-Two functions `save` and `load` are provided for conveniently storing and recovering data, built on top of `Base.serialize`. First usage is for objects of `Any` type:
+## Patch: Displaying SharedArrays
 
-```julia
-save("temp.jlf", randn(5))
+Display of `SharedArray`s is not well behaved when all processes with access to the underlying shared memory are on a remote host.
 
-load("temp.jlf")
-#5-element Array{Float64,1}:
-# -1.41679  
-# -1.2292   
-#  0.103825 
-#  0.0804196
-#  1.4737   
-```
+## Patch: garbage collection error
 
-Second usage takes a list of symbols for variables defined in Main (default kwarg `mod=Main`), turns them into a `Dict` and `save`s that.
-
-```julia
-R = [1,2,3];
-
-X = "Fnordic";
-
-save("temp.jlf", :X, :R)
-
-load("temp.jlf")
-#Dict{Symbol,Any} with 2 entries:
-#  :R => [1,2,3]
-#  :X => "Fnordic"
-```
-
-
+The module also includes a workaround for issue #14445, which is related to garbage collection interrupts from remotecall operations.
