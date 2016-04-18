@@ -115,6 +115,7 @@ topo = describepids(procs(); filterfn=(x)->ismatch(r"tesla", x)) # custom filter
 ## Broadcasting `SharedArray` objects
 
 Using the network topology information we can setup `SharedArray` objects such that memory is shared between processes on the same machines
+This is currently not recommended for heavy use (OK to setup at the beggining of an algorithm, but not multiple calls per second).
 
 ```julia
 topo = describepids();
@@ -146,35 +147,38 @@ workerslices[someworkers[1]]
 # 0.317024  0.381314  0.726252  0.709073
 ```
 
-## Storing and recovering data
+## Concatentation with `stitch`
 
-Two functions `save` and `load` are provided for conveniently storing and recovering data, built on top of `Base.serialize`. First usage is for objects of `Any` type:
-
-```julia
-save("temp.jlf", randn(5))
-
-load("temp.jlf")
-#5-element Array{Float64,1}:
-# -1.41679  
-# -1.2292   
-#  0.103825 
-#  0.0804196
-#  1.4737   
-```
-
-Second usage takes a list of symbols for variables defined in Main (default kwarg `mod=Main`), turns them into a `Dict` and `save`s that.
+The `stitch` function concatenates objects stored on remotes in the ascending order of their process numbers
 
 ```julia
-R = [1,2,3];
+pids
+#5-element Array{Int64,1}:
+#  86
+#  98
+#  74
+#  62
+# 110
 
-X = "Fnordic";
+sow(pids, :x, :(myid()^2*randn(3)))
 
-save("temp.jlf", :X, :R)
-
-load("temp.jlf")
-#Dict{Symbol,Any} with 2 entries:
-#  :R => [1,2,3]
-#  :X => "Fnordic"
+stitch(pids, :x)
+15-element Array{Float64,1}:
+   -724.409
+   4207.66 
+   2020.86 
+  -8955.88 
+  -8417.0  
+   5453.98 
+  -3782.38 
+   2769.99 
+   7397.81 
+ -12128.3  
+  -2169.37 
+   -772.394
+ -10736.4  
+  -8078.21 
+ -31016.8 
 ```
 
 ## Message passing (experimental)
@@ -240,6 +244,37 @@ collectmsgs(:somemsg, remotes)
 #  16 => 32
 #  11 => 22
 # [...]
+```
+
+## Storing and recovering data
+
+Two functions `save` and `load` are provided for conveniently storing and recovering data, built on top of `Base.serialize`. First usage is for objects of `Any` type:
+
+```julia
+save("temp.jlf", randn(5))
+
+load("temp.jlf")
+#5-element Array{Float64,1}:
+# -1.41679  
+# -1.2292   
+#  0.103825 
+#  0.0804196
+#  1.4737   
+```
+
+Second usage takes a list of symbols for variables defined in Main (default kwarg `mod=Main`), turns them into a `Dict` and `save`s that.
+
+```julia
+R = [1,2,3];
+
+X = "Fnordic";
+
+save("temp.jlf", :X, :R)
+
+load("temp.jlf")
+#Dict{Symbol,Any} with 2 entries:
+#  :R => [1,2,3]
+#  :X => "Fnordic"
 ```
 
 
