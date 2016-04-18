@@ -8,7 +8,7 @@ Message passing, control and display utilities for distributed and parallel comp
 
 Traditional map-reduce can be effected by use of the reap function.
 
-```
+```julia
 # map-reduce operations 
 reduce(+, values(reap([2,3,4], :(rand(5).^2)))) #add together 3 vectors of 5 squared uniform random variables
 #5-element Array{Float64,1}:
@@ -84,7 +84,7 @@ topo = describepids(procs(); filterfn=(x)->ismatch(r"tesla", x)) # custom filter
 
 Using the network topology information we can setup `SharedArray` objects such that memory is shared between processes on the same machines
 
-```
+```julia
 topo = describepids();
 reps = collect(keys(topo)) #a representative process from each machine
 #5-element Array{Int64,1}:
