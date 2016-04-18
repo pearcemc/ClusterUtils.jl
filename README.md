@@ -57,7 +57,7 @@ sow(4, :specificbob, :(sqrt(myid())); mod=ClusterUtils)
 
 We can also map to slices, keys, etc. like so:
 
-```
+```julia
 pids = [2,3,4]
 sow(pids, :bar, :(randn(4,4)))
 
