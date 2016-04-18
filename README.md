@@ -25,9 +25,9 @@ reduce(+, values(reap(pids, :(rand(5).^2))))
 # 3.06037 
 ```
 
-We can map the results of an evaluation to a symbol on remote processes using `sow`. This makes the sown object available for future operations.
+We can map the results of an evaluation to a symbol on remote processes using `sow`. This makes the symbol's value available for future operations.
 The default is that the symbol has global scope (keyword arg `mod=Main`). 
-We can retrieve the thing bound to a symbol on remote processes using `reap`.
+We can retrieve the value of a symbol on remote processes using `reap`.
 
 ```julia
 sow(3, :bob, pi^2)
