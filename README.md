@@ -2,6 +2,7 @@
 # ClusterUtils.jl
 
 Message passing, control and display utilities for distributed and parallel computing.
+
 For users of Julia 0.4 `ClusterUtils` requires `using Compat` as the formatting of `remotecall` commands changed.
 
 
@@ -9,11 +10,13 @@ For users of Julia 0.4 `ClusterUtils` requires `using Compat` as the formatting 
 
 Traditional map-reduce can be effected by use of `reap`.
 
+Suppose we want to add together 3 vectors of 5 squared uniform random variables:
+
 ```julia
 using ClusterUtils
 
 pids = [2,3,4]
-reduce(+, values(reap(pids, :(rand(5).^2)))) #add together length(pids)=3 vectors of 5 squared uniform random variables
+reduce(+, values(reap(pids, :(rand(5).^2)))) 
 #5-element Array{Float64,1}:
 # 1.61008 
 # 2.43127 
@@ -22,7 +25,7 @@ reduce(+, values(reap(pids, :(rand(5).^2)))) #add together length(pids)=3 vector
 # 3.06037 
 ```
 
-We can bind something to a symbol on remote processes using `sow`. This makes the sown object available for future operations.
+We can map the results of an evaluation to a symbol on remote processes using `sow`. This makes the sown object available for future operations.
 The default is that the symbol has global scope (keyword arg `mod=Main`). 
 We can retrieve the thing bound to a symbol on remote processes using `reap`.
 
@@ -51,6 +54,32 @@ sow(4, :specificbob, :(sqrt(myid())); mod=ClusterUtils)
 @fetchfrom 4 ClusterUtils.specificbob
 #2.0
 ```
+
+We can also map to slices, keys, etc. like so:
+
+```
+pids = [2,3,4]
+sow(pids, :bar, :(randn(4,4)))
+
+sow(pids, :(bar[1:2,:]), 0)
+
+reap(pids, :bar)[pids[1]]
+#4x4 Array{Float64,2}:
+#  0.0        0.0      0.0        0.0     
+#  0.0        0.0      0.0        0.0     
+# -1.15992   -1.45188  0.282003  -0.135126
+#  0.652393  -1.14758  0.648452   1.17555 
+
+
+sow(pids, :somedict, :(Dict(:buzz=>randn(2,2), :badger=>"hello")));
+sow(pids, :(somedict[:buzz][:,:]), pi);
+
+reap(pids, :(somedict[:buzz]))[pids[1]]
+#2x2 Array{Float64,2}:
+# 3.14159  3.14159
+# 3.14159  3.14159
+```
+
 
 
 ## Network topology
