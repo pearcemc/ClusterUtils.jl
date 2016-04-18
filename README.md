@@ -2,6 +2,7 @@
 # ClusterUtils.jl
 
 Message passing, control and display utilities for distributed and parallel computing.
+For users of Julia 0.4 `ClusterUtils` requires `using Compat` as the formatting of `remotecall` commands changed.
 
 
 ## Map and reduce type operations.
@@ -9,6 +10,8 @@ Message passing, control and display utilities for distributed and parallel comp
 Traditional map-reduce can be effected by use of `reap`.
 
 ```julia
+using ClusterUtils
+
 pids = [2,3,4]
 reduce(+, values(reap(pids, :(rand(5).^2)))) #add together length(pids)=3 vectors of 5 squared uniform random variables
 #5-element Array{Float64,1}:
