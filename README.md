@@ -4,6 +4,52 @@
 Message passing, control and display utilities for distributed and parallel computing.
 
 
+## Map and reduce type operations.
+
+Traditional map-reduce can be effected by use of the reap function.
+
+```
+# map-reduce operations 
+reduce(+, values(reap([2,3,4], :(rand(5).^2)))) #add together 3 vectors of 5 squared uniform random variables
+#5-element Array{Float64,1}:
+# 1.61008 
+# 2.43127 
+# 2.10954 
+# 0.696425
+# 3.06037 
+```
+
+We can bind something to a symbol on remote processes using `sow`. This makes the sown object available for future operations.
+The default is that the symbol has global scope (keyword arg `mod=Main`). 
+We can retrieve the thing bound to a symbol on remote processes using `reap`.
+
+```julia
+sow(3, :bob, pi^2)
+#RemoteRef{Channel{Any}}(3,1,877)
+
+@fetchfrom 3 bob
+#9.869604401089358
+
+sow([2,3,4], :morebob, :(100 + myid()))
+#3-element Array{Any,1}:
+# RemoteRef{Channel{Any}}(2,1,879)
+# RemoteRef{Channel{Any}}(3,1,880)
+# RemoteRef{Channel{Any}}(4,1,881)
+
+reap([2,3,4], :morebob)
+#Dict{Any,Any} with 3 entries:
+#  4 => 104
+#  2 => 102
+#  3 => 103
+
+sow(4, :specificbob, :(sqrt(myid())); mod=ClusterUtils)
+#RemoteRef{Channel{Any}}(4,1,933)
+
+@fetchfrom 4 ClusterUtils.specificbob
+#2.0
+```
+
+
 ## Discovering network topology
 
 The next example is of a utility to describe which processes are on which hosts as this is useful for SharedArray creation.
@@ -34,62 +80,39 @@ topo = describepids(procs(); filterfn=(x)->ismatch(r"tesla", x)) # custom filter
 #  25 => [14,15,16,17,18,19,20,21,22,23,24,25]
 ```
 
-## Sending variables to remotes
+## Broadcasting SharedArrays
 
-We can bind something to a symbol on remote processes using `sow` default symbol has global scope (keyword arg `mod=Main`). 
-We can retrieve the thing bound to a symbol on remote processes using `reap`.
-
-```julia
-sow(3, :bob, pi^2)
-#RemoteRef{Channel{Any}}(3,1,877)
-
-@fetchfrom 3 bob
-#9.869604401089358
-
-sow([2,3,4], :morebob, :(100 + myid()))
-#3-element Array{Any,1}:
-# RemoteRef{Channel{Any}}(2,1,879)
-# RemoteRef{Channel{Any}}(3,1,880)
-# RemoteRef{Channel{Any}}(4,1,881)
-
-reap([2,3,4], :morebob)
-#Dict{Any,Any} with 3 entries:
-#  4 => 104
-#  2 => 102
-#  3 => 103
-
-sow(:yabob, :(1000 - myid()))
-#24-element Array{Any,1}:
-# RemoteRef{Channel{Any}}(2,1,885) 
-# RemoteRef{Channel{Any}}(3,1,886) 
-# RemoteRef{Channel{Any}}(4,1,887) 
-# [...]
-
-reap(:yabob)
-#Dict{Any,Any} with 24 entries:
-#  2  => 998
-#  16 => 984
-#  11 => 989
-# [...]
-
-sow(4, :specificbob, :(sqrt(myid())); mod=ClusterUtils)
-#RemoteRef{Channel{Any}}(4,1,933)
-
-@fetchfrom 4 ClusterUtils.specificbob
-#2.0
-
-# map-reduce operations 
-reduce(+, values(reap([2,3,4], :(rand(5).^2)))) #add together 3 vectors of 5 squared uniform random variables
-#5-element Array{Float64,1}:
-# 1.61008 
-# 2.43127 
-# 2.10954 
-# 0.696425
-# 3.06037 
-
+Using the network topology information we can setup `SharedArray` objects such that memory is shared between processes on the same machines
 
 ```
+topo = describepids();
+reps = collect(keys(topo)) #a representative process from each machine
+#5-element Array{Int64,1}:
+#  86
+#  98
+#  74
+#  62
+# 110
 
+broadcast_shared(topo, Float32, rand(4,4), :foo); # initialises a SharedArray using the same random matrix on each machine
+
+sow(reps, :(foo[1,:]), :(map(Float32, pi)))
+
+someworkers = reps+1
+#5-element Array{Int64,1}:
+#  87
+#  99
+#  75
+#  63
+# 111
+
+workerslices = reap(someworkers, :(foo[1:2,:]));
+
+workerslices[someworkers[1]]
+#2x4 Array{Float32,2}:
+# 3.14159   3.14159   3.14159   3.14159 
+# 0.317024  0.381314  0.726252  0.709073
+```
 
 ## Storing and recovering data
 
