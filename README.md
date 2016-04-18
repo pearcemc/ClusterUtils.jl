@@ -6,11 +6,11 @@ Message passing, control and display utilities for distributed and parallel comp
 
 ## Map and reduce type operations.
 
-Traditional map-reduce can be effected by use of the reap function.
+Traditional map-reduce can be effected by use of `reap`.
 
 ```julia
-# map-reduce operations 
-reduce(+, values(reap([2,3,4], :(rand(5).^2)))) #add together 3 vectors of 5 squared uniform random variables
+pids = [2,3,4]
+reduce(+, values(reap(pids, :(rand(5).^2)))) #add together length(pids)=3 vectors of 5 squared uniform random variables
 #5-element Array{Float64,1}:
 # 1.61008 
 # 2.43127 
@@ -50,7 +50,7 @@ sow(4, :specificbob, :(sqrt(myid())); mod=ClusterUtils)
 ```
 
 
-## Discovering network topology
+## Network topology
 
 The next example is of a utility to describe which processes are on which hosts as this is useful for SharedArray creation.
 `describepids` returns a dict where the keys are processes on unique hosts, the keyed value represents all processes on that host.
@@ -80,7 +80,7 @@ topo = describepids(procs(); filterfn=(x)->ismatch(r"tesla", x)) # custom filter
 #  25 => [14,15,16,17,18,19,20,21,22,23,24,25]
 ```
 
-## Broadcasting SharedArrays
+## Broadcasting `SharedArray` objects
 
 Using the network topology information we can setup `SharedArray` objects such that memory is shared between processes on the same machines
 
