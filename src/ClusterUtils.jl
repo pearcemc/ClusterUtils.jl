@@ -162,7 +162,10 @@ end
 function sow(pids::Array{Int64, 1}, name::Doable, value; mod=Main, callstyle=remotecall_wait)
     refs = Dict{Int64, RemoteRef}()
     @sync for p in pids
-        @async refs[p] = sow(p, name, value; mod=mod, callstyle=callstyle)
+        @async begin 
+            rref = sow(p, name, value; mod=mod, callstyle=callstyle)
+            refs[p] = rref
+        end 
     end
     refs
 end
