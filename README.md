@@ -3,8 +3,7 @@
 
 Message passing, control and display utilities for distributed and parallel computing.
 
-For users of Julia 0.4 `ClusterUtils` requires `using Compat` as the formatting of `remotecall` commands changed.
-
+Current version of this repository requires Julia 0.5.
 
 ## Map and reduce type operations.
 
