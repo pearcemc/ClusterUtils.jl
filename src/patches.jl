@@ -20,7 +20,7 @@ end
 
 #workarounds for #14445 - basically doing remotecall can break garbage collection
 
-if VERSION < v"0.6-"
+if VERSION < v"0.5-"
 
 function del_client(pg, id, client)
 # As a workaround to issue https://github.com/JuliaLang/julia/issues/14445
