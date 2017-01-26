@@ -16,7 +16,7 @@ function filterpaths(dir, srch)
 end
 
 function dictify(syms::Symbol...; mod=Main)
-    Dict([s => eval(mod, s) for s in syms])
+    Dict(s => eval(mod, s) for s in syms)
 end
 
 function save(fp::AbstractString, A::Any)

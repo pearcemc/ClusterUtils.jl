@@ -1,7 +1,35 @@
 
 # ClusterUtils.jl
 
-Message passing, control and display utilities for distributed and parallel computing.
+Message passing, control and display utilities for distributed and parallel computing. The primary use case is convenience in:
+
+ - assigning variables on remote processes.
+ - computing on remote variables many times.
+ - retrieving some facts about variables on remote processes.
+
+If you were hoping for parallel behaviour that looks something like:
+
+```julia
+
+reap(2, :(x = myid()))
+#Dict{Int64,Any} with 1 entry:
+#  2 => 2
+
+reap(2, :(sqrt(x)))
+#Dict{Int64,Any} with 1 entry:
+#  2 => 1.41421
+
+sow(2, :y, myid())
+#Future(2,1,16,Nullable{Any}())
+
+reap(2, :y)
+#Dict{Int64,Any} with 1 entry:
+#  2 => 1
+```
+
+Then this package may be of interest.
+
+## Compatibility
 
 Current version of this repository requires Julia 0.5.
 
@@ -197,7 +225,7 @@ remotes = workers()
 #  4
 #  [...]
 
-msgmaster = Dict([k=>0 for k in remotes]);
+msgmaster = Dict(k=>0 for k in remotes);
 sow(remotes, :somemsg, msgmaster );
 
 isdefined(:somemsg)

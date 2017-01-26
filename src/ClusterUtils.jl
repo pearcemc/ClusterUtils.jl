@@ -2,9 +2,9 @@
 module ClusterUtils
 
 export lookup, filterpaths, dictify, save, load
-export @timeit
 export describepids, localpids, invtopology, chunkit
 export Doable, sow, reap, reaprefs
+export @reap, @sow
 export getrepresentation, display, broadcast_shared
 
 #export collectmsgs, collectmsgsatpid, collectmsgsatmaster, swapmsgs
